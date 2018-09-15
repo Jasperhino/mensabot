@@ -8,7 +8,7 @@ import schedule
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import messages
-from dbhelper import DBHelper
+from mysqlhelper import DBHelper
 
 db = DBHelper()
 
@@ -43,7 +43,8 @@ def get_last_chat_id_and_text(updates):
     return (text, chat_id)
 
 
-def send_message(text, chat_id, reply_markup = None):
+def send_message(text, chat_id, reply_markup=None):
+    print("Sending to ", chat_id ,': ', text)
     text = urllib.parse.quote_plus(text)
     url = URL_BOT + "sendMessage?text={}&chat_id={}&parse_mode={}".format(text, chat_id, "Markdown")
     if reply_markup:
@@ -124,10 +125,15 @@ def handle_updates(updates):
                 send_message(messages.START, chat_id)
                 db.add_entry(chat_id)  # Database checks if its duplicate
             elif text == '/stop':
-                send_stop_message(messages.STOP, chat_id)
+                send_message(messages.STOP, chat_id)
                 db.delete_entry(chat_id)
-            if text == '/help':
+            elif text == '/help':
                 send_message(messages.HELP, chat_id)
+            elif text == '/menu':
+                todays_menu = get_todays_menu()
+                keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
+                markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
+                send_message(todays_menu, chat_id, markup)
 
         except KeyError:
             pass
@@ -138,6 +144,7 @@ def write_json_to_file(data):
 
 def broadcast_todays_menu():
     for chat_id in db.get_all_chats():
+        print("chat", db.get_all_chats())
         todays_menu = get_todays_menu()
         keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
         markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
@@ -153,18 +160,16 @@ def broadcast_test():
 
 
 def main():
-    # db.delete_db() #TODO Remove
     db.setup()
 
     #schedule.every().day.at("18:43").do(send_test_message)
-    #schedule.every().minute.do(broadcast_todays_menu)
+    schedule.every().minute.do(broadcast_todays_menu)
     last_update_id = None
     print('Server is listening...')
     
     #test()
     broadcast_todays_menu()
-    return
-
+    #return
     while True:
         schedule.run_pending()
 
