@@ -4,8 +4,8 @@ class DBHelper:
     def __init__(self):
         self.conn = mysql.connector.connect(
             host="localhost",
-            user="root",
-            passwd="" #sN312:WZZi2QZcUZkIF-
+            user="jasperoo",
+            passwd="XHVSszwjz_n0pEkqX7-1"
         )
         self.cursor = self.conn.cursor()
         self.cursor.execute("CREATE DATABASE IF NOT EXISTS jasperoo")
@@ -15,8 +15,8 @@ class DBHelper:
         print("creating table")
         self.conn = mysql.connector.connect(
             host="localhost",
-            user="root",
-            passwd="", #sN312:WZZi2QZcUZkIF-
+            user="jasperoo",
+            passwd="XHVSszwjz_n0pEkqX7-1",
             database="jasperoo"
         )
         self.cursor = self.conn.cursor()
