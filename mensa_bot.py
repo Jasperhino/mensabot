@@ -174,10 +174,12 @@ def main():
         schedule.run_pending()
 
         updates = get_updates(last_update_id)
-        if len(updates["result"]) > 0:
-            last_update_id = get_last_update_id(updates) + 1
-        handle_updates(updates)
-
+        try:
+            if len(updates["result"]) > 0:
+                last_update_id = get_last_update_id(updates) + 1
+            handle_updates(updates)
+        except KeyError:
+            pass
         time.sleep(0.5)
 
 if __name__ == '__main__':
