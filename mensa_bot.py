@@ -162,14 +162,11 @@ def broadcast_test():
 def main():
     db.setup()
 
-    #schedule.every().day.at("18:43").do(send_test_message)
-    schedule.every().minute.do(broadcast_todays_menu)
+    schedule.every().day.at("11:45").do(broadcast_todays_menu)
+    #schedule.every().minute.do(broadcast_todays_menu)
     last_update_id = None
     print('Server is listening...')
     
-    #test()
-    broadcast_todays_menu()
-    #return
     while True:
         schedule.run_pending()
 
