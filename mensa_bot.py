@@ -5,17 +5,24 @@ import requests
 import urllib
 import time
 import schedule
+import traceback
+import logging
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import messages
 from mysqlhelper import DBHelper
 
-db = DBHelper()
+try:
+    db = DBHelper()
+except Exception as e:
+    logging.error(traceback.format_exc())
 
 TOKEN = "658431448:AAF6HYQVwJ4hs5oOfrZc8dpSX6exP7G5VZ0"
 URL_BOT = "https://api.telegram.org/bot{}/".format(TOKEN)
 URL_MENSA = "https://www.studentenwerk-potsdam.de/essen/unsere-mensen-cafeterien/detailinfos/?tx_typoscriptrendering%5Bcontext%5D=%7B%22record%22%3A%22pages_66%22%2C%22path%22%3A%22tt_content.list.20.ddfmensa_ddfmensajson%22%7D&tx_ddfmensa_ddfmensajson%5Bmensa%5D=6&cHash=0c7f1095dcc78ff74b6cd32cd231c75f"
 URL_MENSA_BUTTON = "www.studentenwerk-potsdam.de/mensa-griebnitzsee.html"
+FILENAME = "menu.json"
 
 def get_url(url):
     response = requests.get(url)
@@ -60,29 +67,20 @@ def build_inline_keyboard(keyboard):
     reply_markup = {"inline_keyboard":keyboard}
     return json.dumps(reply_markup)
 
-def send_all_menus(data):
-    string_list = []
-    days = data['wochentage'] 
-    for day in days:
-        string_list.append(day['datum']['data'] + '\n')
-
-        if 'angebote' in day['datum']:
-            angebote = day['datum']['angebote']
-
-            for angebot in angebote:
-                string_list.append(angebot['titel'] + '\n')
-                string_list.append(angebot['beschreibung'] + '\n')
-
-        else: string_list.append('Keine Angebote \n')
-
-    message = ''.join(string_list)
-
-    send_message(message, chat_id)
+def main_menu_keyboard():
+    keyboard = [[InlineKeyboardButton('Option 1', callback_data='m1')],
+                [InlineKeyboardButton('Option 2', callback_data='m2')],
+                [InlineKeyboardButton('Option 3', callback_data='m3')]]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_todays_menu():
-    print('called get_todays_menu()')
+    return get_menu(0)
+
+def get_menu(id):
     data = get_json_from_url(URL_MENSA)
-    day = data['wochentage'][0]
+    if len(data['wochentage']) <= id:
+        return "Keine Angebote"
+    day = data['wochentage'][id]
 
     string_list = []    
     string_list.append(messages.DATE)
@@ -98,7 +96,7 @@ def get_todays_menu():
     else: string_list.append("_Keine Angebote_\n")
 
     result = ''.join(string_list)
-    print("Todays Menu:", result)
+    print(f"Menu for Day {id}: {result}")
     return result
 
 def get_updates(offset=None):
@@ -138,46 +136,46 @@ def handle_updates(updates):
         except KeyError:
             pass
     
-def write_json_to_file(data):
-    with open('data.json', 'w') as outfile:
+def save_json_to_file(data):
+    with open(FILENAME, 'w') as outfile:
         json.dump(data, outfile)
 
 def broadcast_todays_menu():
+    todays_menu = get_todays_menu()
+    keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
+    markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
+
     for chat_id in db.get_all_chats():
         print("chat", db.get_all_chats())
-        todays_menu = get_todays_menu()
-        keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
-        markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
         send_message(todays_menu, chat_id, markup)
 
-def broadcast_test():
-    for chat_id in db.get_all_chats():
-        todays_menu = "Menu"
-        keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
-        markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
-        print(markup)
-        send_message(todays_menu, chat_id, markup)
-
+# Test
+def get_and_save():
+    data = get_json_from_url(URL_MENSA)
+    save_json_to_file(data)
 
 def main():
-    db.setup()
+    try:
+        for i in range(0,14):
+            get_menu(i)
 
-    schedule.every().day.at("11:45").do(broadcast_todays_menu)
-    #schedule.every().minute.do(broadcast_todays_menu)
-    last_update_id = None
-    print('Server is listening...')
-    
-    while True:
-        schedule.run_pending()
+# """        """  db.setup()
 
-        updates = get_updates(last_update_id)
-        try:
-            if len(updates["result"]) > 0:
-                last_update_id = get_last_update_id(updates) + 1
-            handle_updates(updates)
-        except KeyError:
-            pass
-        time.sleep(0.5)
+#         schedule.every().day.at("14:35").do(broadcast_todays_menu)
+#         last_update_id = None
+#         print('Server is listening...')
+        
+#         while True:
+#             schedule.run_pending()
+#             updates = get_updates(last_update_id)
+#             if len(updates["result"]) > 0:
+#                 last_update_id = get_last_update_id(updates) + 1
+#             handle_updates(updates)
 
+#             time.sleep(0.5) """ """
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+            
 if __name__ == '__main__':
     main()
