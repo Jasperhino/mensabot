@@ -71,7 +71,7 @@ def main_menu_keyboard():
     keyboard = [[InlineKeyboardButton('Option 1', callback_data='m1')],
                 [InlineKeyboardButton('Option 2', callback_data='m2')],
                 [InlineKeyboardButton('Option 3', callback_data='m3')]]
-    return InlineKeyboardMarkup(keyboard)
+    return json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
 
 def get_todays_menu():
     return get_menu(0)
