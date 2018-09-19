@@ -68,9 +68,12 @@ def build_inline_keyboard(keyboard):
     return json.dumps(reply_markup)
 
 def main_menu_keyboard():
-    keyboard = [[InlineKeyboardButton('Option 1', callback_data='m1')],
-                [InlineKeyboardButton('Option 2', callback_data='m2')],
-                [InlineKeyboardButton('Option 3', callback_data='m3')]]
+    keyboard = [[
+                InlineKeyboardButton('<--', callback_data='b'),
+                InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON),
+                InlineKeyboardButton('-->', callback_data='f'),
+                ]]
+
     return json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
 
 def get_todays_menu():
