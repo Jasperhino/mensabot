@@ -133,7 +133,7 @@ def handle_updates(updates):
                 markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
                 send_message(todays_menu, chat_id, markup)
             elif text == '/test':
-                sendmessage("menu test:", chat_id, main_menu_keyboard())
+                send_message("menu test:", chat_id, main_menu_keyboard())
 
         except KeyError:
             pass
