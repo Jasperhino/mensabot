@@ -56,7 +56,11 @@ def send_message(text, chat_id, reply_markup=None):
     url = URL_BOT + "sendMessage?text={}&chat_id={}&parse_mode={}".format(text, chat_id, "Markdown")
     if reply_markup:
         url += "&reply_markup={}".format(reply_markup)
-    get_url(url)
+    print("Response:", get_url(url))
+
+def edit_message(text, message_id):
+    print(f"Editing message {msg_id} in {chat_id} to: {text}")
+    url = URL_BOT + "sendMessage?text={}&chat_id={}&parse_mode={}".format(text, chat_id, "Markdown")
     
 def build_keyboard(options):
     keyboard = [[option] for option in options]
@@ -71,7 +75,7 @@ def main_menu_keyboard():
     keyboard = [[
                 InlineKeyboardButton('<--', callback_data='b'),
                 InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON),
-                InlineKeyboardButton('-->', callback_data='f'),
+                InlineKeyboardButton('-->', callback_data='f')
                 ]]
 
     return json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
