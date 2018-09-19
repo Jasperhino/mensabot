@@ -132,6 +132,8 @@ def handle_updates(updates):
                 keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
                 markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
                 send_message(todays_menu, chat_id, markup)
+            elif: text == '/test':
+                sendmessage("menu test:", chat_id, main_menu_keyboard())
 
         except KeyError:
             pass
