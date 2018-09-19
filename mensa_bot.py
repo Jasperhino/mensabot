@@ -132,7 +132,7 @@ def handle_updates(updates):
                 keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
                 markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
                 send_message(todays_menu, chat_id, markup)
-            elif: text == '/test':
+            elif text == '/test':
                 sendmessage("menu test:", chat_id, main_menu_keyboard())
 
         except KeyError:
@@ -158,23 +158,20 @@ def get_and_save():
 
 def main():
     try:
-        for i in range(0,14):
-            get_menu(i)
+        db.setup()
 
-# """        """  db.setup()
-
-#         schedule.every().day.at("14:35").do(broadcast_todays_menu)
-#         last_update_id = None
-#         print('Server is listening...')
+        schedule.every().day.at("14:35").do(broadcast_todays_menu)
+        last_update_id = None
+        print('Server is listening...')
         
-#         while True:
-#             schedule.run_pending()
-#             updates = get_updates(last_update_id)
-#             if len(updates["result"]) > 0:
-#                 last_update_id = get_last_update_id(updates) + 1
-#             handle_updates(updates)
+        while True:
+            schedule.run_pending()
+            updates = get_updates(last_update_id)
+            if len(updates["result"]) > 0:
+                last_update_id = get_last_update_id(updates) + 1
+            handle_updates(updates)
 
-#             time.sleep(0.5) """ """
+            time.sleep(0.5)
 
     except Exception as e:
         logging.error(traceback.format_exc())
