@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.6
-
+import re
 import json
 import requests
 import urllib
@@ -25,22 +25,28 @@ URL_MENSA_BUTTON = "www.studentenwerk-potsdam.de/mensa-griebnitzsee.html"
 FILENAME = "menu.json"
 
 def get_url(url):
-    response = requests.get(url)
-    content = response.content.decode("utf8")
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        content = response.content.decode("utf8")
+    except requests.exceptions.RequestException as e:  # This is the correct syntax
+        print(e)
+        return None
     return content
-
 
 def get_json_from_url(url):
     content = get_url(url)
-    js = json.loads(content)
-    return js
-
+    if content:
+        js = json.loads(content)
+        return js
+    return None
 
 def get_updates():
     url = URL_BOT + "getUpdates"
     js = get_json_from_url(url)
-    return js
-
+    if js:
+        return js
+    return None
 
 def get_last_chat_id_and_text(updates):
     num_updates = len(updates["result"])
@@ -48,7 +54,6 @@ def get_last_chat_id_and_text(updates):
     text = updates["result"][last_update]["message"]["text"]
     chat_id = updates["result"][last_update]["message"]["chat"]["id"]
     return (text, chat_id)
-
 
 def send_message(text, chat_id, reply_markup=None):
     print("Sending to ", chat_id ,': ', text)
@@ -58,9 +63,12 @@ def send_message(text, chat_id, reply_markup=None):
         url += "&reply_markup={}".format(reply_markup)
     print("Response:", get_url(url))
 
-def edit_message(text, message_id):
-    print(f"Editing message {msg_id} in {chat_id} to: {text}")
-    url = URL_BOT + "sendMessage?text={}&chat_id={}&parse_mode={}".format(text, chat_id, "Markdown")
+def edit_message(text, chat_id, message_id, reply_markup=None):
+    print(f"Editing message {message_id} in {chat_id} to: {text}")
+    url = URL_BOT + "editMessageText?text={}&chat_id={}&message_id={}&parse_mode={}".format(text, chat_id, message_id, "Markdown")
+    if reply_markup:
+        url += "&reply_markup={}".format(reply_markup)
+    print("Response:", get_url(url))
     
 def build_keyboard(options):
     keyboard = [[option] for option in options]
@@ -72,12 +80,14 @@ def build_inline_keyboard(keyboard):
     return json.dumps(reply_markup)
 
 def main_menu_keyboard():
+    keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
+    return json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
+
+def callback_keyboard():
     keyboard = [[
                 InlineKeyboardButton('<--', callback_data='b'),
-                InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON),
                 InlineKeyboardButton('-->', callback_data='f')
                 ]]
-
     return json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
 
 def get_todays_menu():
@@ -85,6 +95,8 @@ def get_todays_menu():
 
 def get_menu(id):
     data = get_json_from_url(URL_MENSA)
+    if not data:
+        return "Ups... Something went wrong. Sry :/"
     if len(data['wochentage']) <= id:
         return "Keine Angebote"
     day = data['wochentage'][id]
@@ -97,9 +109,12 @@ def get_menu(id):
         angebote = day['datum']['angebote']
 
         for angebot in angebote:
-            string_list.append("*" + angebot['titel'] + '*\n')
-            string_list.append(angebot['beschreibung'] + '\n')
-
+            string_list.append("\n*" + angebot['titel'] + '*')
+            if angebot['filter']['zutaten']['vegan']:
+                string_list.append(" _(vegan)_")
+            if angebot['filter']['zutaten']['vegetarisch']:
+                string_list.append(" _(vegetarisch)_")
+            string_list.append('\n' + angebot['beschreibung'] + '\n')
     else: string_list.append("_Keine Angebote_\n")
 
     result = ''.join(string_list)
@@ -121,29 +136,56 @@ def get_last_update_id(updates):
 
 def handle_updates(updates):
     for update in updates["result"]:
-        try:
+        print(f"Handling Update: {update}")
+        # Handling chat commands
+        if 'message' in update:
             text = update["message"]["text"]
             chat_id = update["message"]["chat"]["id"]
             print("Chat " + str(chat_id) + ": " + text)
-
             if text == '/start':
                 send_message(messages.START, chat_id)
-                db.add_entry(chat_id)  # Database checks if its duplicate
+                if db.contains(chat_id):
+                    db.update_listening(chat_id, 1)
+                else:
+                    db.add_entry(chat_id)
+                schedule_listener(chat_id, db.get_time(chat_id))
             elif text == '/stop':
                 send_message(messages.STOP, chat_id)
-                db.delete_entry(chat_id)
+                schedule.clear(chat_id)
+                db.update_listening(chat_id, 0)
             elif text == '/help':
                 send_message(messages.HELP, chat_id)
             elif text == '/menu':
                 todays_menu = get_todays_menu()
-                keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
-                markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
-                send_message(todays_menu, chat_id, markup)
+                send_message(todays_menu, chat_id, main_menu_keyboard())
             elif text == '/test':
                 send_message("menu test:", chat_id, main_menu_keyboard())
+            else:
+                m = re.search("([0-1]?\d|2[0-3])[:|.][0-5]\d", text)
+                if m:
+                    time = m[0]
+                    if len(time) < 5:
+                        time = '0' + time
+                    time = time[:2] + ':' + time[3:]
+                    schedule_listener(chat_id, time)
+                    send_message(f"{messages.ACK} {time}", chat_id)
+                    db.update_time(chat_id, time)
+                else: send_message("Wat?", chat_id)
+            
+        # Handling callbacks
+        if 'callback_query' in update:
+            print("Handling Callback")
+            callback_query = update["callback_query"]
 
-        except KeyError:
-            pass
+            message_id = callback_query["message"]["message_id"]
+            chat_id = callback_query["message"]["chat"]["id"]
+            
+            data = callback_query["data"]
+            if data == 'f':
+                print("Recieved Callback", data)
+            elif data == 'b':
+                print("Recieved Callback", data)
+            edit_message(data, chat_id, message_id, main_menu_keyboard())
     
 def save_json_to_file(data):
     with open(FILENAME, 'w') as outfile:
@@ -151,37 +193,53 @@ def save_json_to_file(data):
 
 def broadcast_todays_menu():
     todays_menu = get_todays_menu()
-    keyboard = [[InlineKeyboardButton("Online anzeigen", url=URL_MENSA_BUTTON)]]
-    markup = json.dumps(InlineKeyboardMarkup(keyboard).to_dict())
+    keyboard = main_menu_keyboard()
 
-    for chat_id in db.get_all_chats():
-        print("chat", db.get_all_chats())
-        send_message(todays_menu, chat_id, markup)
+    for chat_id in db.get_all_listeners():
+        send_message(todays_menu, chat_id, keyboard)
+    
+def send_todays_menu(chat_id):
+    todays_menu = get_todays_menu()
+    keyboard = main_menu_keyboard()
+    send_message(todays_menu, chat_id, keyboard)
 
 # Test
 def get_and_save():
     data = get_json_from_url(URL_MENSA)
     save_json_to_file(data)
 
+def schedule_all_listeners():
+    for (chat_id, time) in db.get_all_listeners():
+        schedule_listener(chat_id, time)
+
+def schedule_listener(chat_id, time):
+        print(f"scheduling {chat_id} at {time}")
+        schedule.clear(chat_id)
+        job = schedule.every().day.at(time).do(send_todays_menu, chat_id)
+        job.tags.add(chat_id)
+
 def main():
     try:
         db.setup()
-
-        schedule.every().day.at("14:35").do(broadcast_todays_menu)
+        schedule_all_listeners()
         last_update_id = None
-        print('Server is listening...')
-        
-        while True:
-            schedule.run_pending()
-            updates = get_updates(last_update_id)
-            if len(updates["result"]) > 0:
-                last_update_id = get_last_update_id(updates) + 1
-            handle_updates(updates)
-
-            time.sleep(0.5)
-
+        print('Server is running...')
     except Exception as e:
         logging.error(traceback.format_exc())
+    while True:
+        try:
+            schedule.run_pending()
+            updates = get_updates(last_update_id)
+            if 'result' in updates:
+                if len(updates["result"]) > 0:
+                    last_update_id = get_last_update_id(updates) + 1
+                handle_updates(updates)
+
+            time.sleep(0.5)
+        except Exception as e:
+            logging.error(traceback.format_exc())
+
+
             
 if __name__ == '__main__':
     main()
